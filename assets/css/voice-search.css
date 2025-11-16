@@ -1,0 +1,424 @@
+/* ======================================================
+   🎤 Voice Search – Unified CSS (Shortcode + Gutenberg)
+   Versi: 1.5.2 – Wave Fix, Custom Icon, Dark Mode, Consistent UI
+   Catatan versi 1.5.2:
+   - PERBAIKAN: wave sekarang muncul untuk .vs-meter dan .wpvs-wave
+   - Tambahkan dukungan .vs-mic & .wpvs-mic (sibling selector)
+   - Tambahkan fallback parent state (.is-listening) jika struktur DOM bukan sibling
+   - Pastikan z-index mic > wave agar klik tetap enak
+   ====================================================== */
+
+/* =========================
+   Global theme-aware tokens
+   ========================= */
+.vs-wrap {
+  --vs-h: 44px;                  /* tinggi konsisten input & button */
+  --vs-r: 12px;                  /* radius seragam */
+  --vs-gap: 8px;                 /* jarak input <-> tombol submit */
+  --vs-pad-x: 14px;
+  --vs-accent: #ee2a7b;          /* warna tombol Search (contoh fuchsia) */
+  color-scheme: light dark;      /* hormati setting OS/Browser */
+}
+
+/* Warna input shortcode mengikuti tema (fallback) */
+.vs-wrap .vs-input {
+  background: var(--vs-input-bg, rgba(255,255,255,.98));
+  color: var(--vs-input-fg, #111);
+  border: 1px solid rgba(0,0,0,.08);
+}
+.vs-wrap .vs-submit {
+  background: var(--vs-accent);
+  color: #fff;
+  border: none;
+}
+
+/* Fallback dark jika tema belum expose token */
+@media (prefers-color-scheme: dark) {
+  .vs-wrap .vs-input {
+    background: rgba(30,30,30,.9);
+    color: #eee;
+    border-color: rgba(255,255,255,.12);
+  }
+}
+
+/* =========================
+   Layout shortcode (.vs-*)
+   ========================= */
+.vs-search {
+  display: flex; align-items: stretch; gap: var(--vs-gap);
+}
+.vs-field { position: relative; flex: 1 1 auto; }
+.vs-input, .vs-submit {
+  height: var(--vs-h);
+  border-radius: var(--vs-r);
+  padding: 0 var(--vs-pad-x);
+  font: inherit; line-height: 1.2;
+}
+.vs-input {
+  width: 100%;
+  padding-right: calc(var(--vs-pad-x) + 34px); /* ruang untuk mic */
+}
+
+/* Tombol submit (shortcode) */
+.vs-submit {
+  cursor: pointer;
+  padding-inline: 16px;
+  transition: transform .08s ease, opacity .2s ease, box-shadow .25s ease;
+  box-shadow: 0 6px 16px rgba(238,42,123,.25);
+}
+.vs-submit:hover { transform: translateY(-1px); }
+.vs-submit:active { transform: translateY(0); }
+
+/* Mic (shortcode) */
+.vs-mic {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  width: 28px; height: 28px; border-radius: 999px;
+  display: grid; place-items: center;
+  background: transparent; color: currentColor;
+  border: 0; cursor: pointer;
+  transition: filter .2s ease, transform .12s ease;
+  z-index: 3; /* pastikan di atas wave */
+}
+.vs-mic:hover { filter: brightness(1.1); }
+
+/* Glow saat aktif */
+.vs-mic.is-active::before {
+  content: ""; position: absolute; inset: -4px; border-radius: inherit;
+  box-shadow: 0 0 0 2px rgba(0,173,255,.35), 0 0 18px 3px rgba(0,173,255,.25);
+}
+
+/* Shortcode mic pakai icon custom juga */
+.vs-mic.has-custom-icon::before {
+  content: "";
+  display: inline-block;
+  width: 20px;            /* atau var(--wpvs-mic-size) jika mau seragam */
+  height: 20px;
+  background-image: var(--wpvs-mic-icon, var(--wpvs-mic-icon));
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+/* Sembunyikan isi lama (emoji/SVG) saat pakai custom icon */
+.vs-mic.has-custom-icon,
+.vs-mic.has-custom-icon * {
+  font-size: 0 !important;
+  color: transparent !important;
+  fill: transparent !important;
+}
+.vs-mic.has-custom-icon svg,
+.vs-mic.has-custom-icon img { display: none !important; }
+
+/* =========================
+   WAVE (Shortcode + Gutenberg)
+   — Diperbaiki agar tampil untuk .vs-meter dan .wpvs-wave
+   — Mendukung .vs-mic & .wpvs-mic (sibling)
+   — Fallback parent state .is-listening jika struktur DOM berubah
+   ========================= */
+
+/* Basis: sembunyikan wave dulu & posisikan di kiri mic (Gutenberg + universal) */
+.vs-meter,
+.wpvs-wave {
+  position: absolute;
+  /* wave rata tengah vertikal & di kiri ikon mic berbasis var Gutenberg */
+  right: calc(var(--wpvs-mic-right, 12px) + var(--wpvs-mic-size, 20px) + 6px);
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  gap: 3px;
+  opacity: 0;                    /* default tersembunyi */
+  transition: opacity .2s ease;
+  pointer-events: none;
+  z-index: 2;                    /* mic z-index harus > 2 */
+}
+
+/* Bar/blade di dalam wave */
+.vs-meter i,
+.wpvs-wave i {
+  width: 3px;
+  height: 10px;
+  border-radius: 2px;
+  background: #00adff;
+  transform-origin: bottom;
+  transform: scaleY(var(--lvl, .4));
+  transition: transform 80ms linear;
+}
+
+/* Tampilkan wave saat mic aktif/listening — skema 'sibling' */
+.vs-mic.is-active ~ .vs-meter,
+.vs-mic.is-active ~ .wpvs-wave,
+.vs-mic.wpvs-listening ~ .vs-meter,
+.vs-mic.wpvs-listening ~ .wpvs-wave,
+.wpvs-mic.is-active ~ .vs-meter,
+.wpvs-mic.is-active ~ .wpvs-wave,
+.wpvs-mic.wpvs-listening ~ .vs-meter,
+.wpvs-mic.wpvs-listening ~ .wpvs-wave {
+  opacity: 1;
+}
+
+/* Fallback: jika DOM bukan sibling, gunakan kelas parent state */
+.vs-field.is-listening .vs-meter,
+.vs-field.is-listening .wpvs-wave,
+.wpvs-input-wrap.is-listening .vs-meter,
+.wpvs-input-wrap.is-listening .wpvs-wave {
+  opacity: 1;
+}
+
+/* =========================
+   Gutenberg / Block styles
+   ========================= */
+
+/* Variabel dasar (bisa diubah via settings) */
+.wpvs-search-form {
+  --wpvs-input-height: 44px;
+  --wpvs-mic-size: 20px;
+  --wpvs-mic-right: 12px;
+  --wpvs-font-size: 14px;
+  --wpvs-btn-bg: #ccff00;
+  --wpvs-mic-icon: none; /* set via inline style/CSS jika user upload icon */
+}
+
+/* Struktur form */
+.wpvs-search-form {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.wpvs-input-wrap {
+  position: relative;
+  flex: 1 1 320px;
+  min-height: var(--wpvs-input-height);
+  display: block;
+}
+
+/* Input (Gutenberg + universal) */
+.wpvs-field,
+.search-field,
+.wp-block-search .wp-block-search__input {
+  width: 100%;
+  font-size: var(--wpvs-font-size);
+  box-sizing: border-box;
+  padding: 10px 42px 10px 12px;
+  min-height: var(--wpvs-input-height);
+  line-height: calc(var(--wpvs-input-height) - 20px);
+  border-width: var(--wpvs-border-width, 1px);
+  border-radius: 12px; /* seragamkan rounded ke 12px */
+  border-color: #ccc;
+  transition: border-color 0.2s ease;
+  background: var(--wpvs-input-bg, #fff);
+  color: var(--wpvs-input-fg, #111);
+}
+.wpvs-field:focus,
+.wp-block-search .wp-block-search__input:focus {
+  outline: none;
+  border-color: #888;
+}
+
+/* Tombol submit (Gutenberg + universal) */
+.wpvs-submit,
+.search-submit,
+.wp-block-search .wp-block-search__button {
+  padding: 10px 14px;
+  font-size: var(--wpvs-font-size);
+  cursor: pointer;
+  line-height: 1;
+  background-color: var(--wpvs-btn-bg);
+  color: #000;
+  border: none;
+  border-radius: 12px; /* seragamkan rounded */
+  transition: background-color 0.2s ease, transform 0.1s ease;
+}
+.wpvs-submit:hover,
+.search-submit:hover,
+.wp-block-search .wp-block-search__button:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
+/* Mic (Gutenberg + universal) */
+.wpvs-mic {
+  position: absolute;
+  right: var(--wpvs-mic-right);
+  top: 50%;
+  transform: translateY(-50%);
+  width: var(--wpvs-mic-size);
+  height: var(--wpvs-mic-size);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-size: var(--wpvs-mic-size);
+  line-height: 1;
+  cursor: pointer;
+  color: #555;
+  pointer-events: auto;
+  transition: transform 0.2s ease, color 0.2s ease;
+  z-index: 3; /* di atas wave */
+}
+/* Ikon custom via CSS var */
+.wpvs-mic.has-custom-icon::before {
+  content: "";
+  display: inline-block;
+  width: var(--wpvs-mic-size);
+  height: var(--wpvs-mic-size);
+  background-image: var(--wpvs-mic-icon);
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+/* Sembunyikan emoji jika pakai icon custom */
+.wpvs-mic.has-custom-icon {
+  font-size: 0 !important;
+  color: transparent !important;
+}
+.wpvs-mic:hover { color: #000; transform: translateY(-50%) scale(1.1); }
+.wpvs-mic:focus-visible {
+  outline: 2px solid #7aa7ff;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+/* Animasi listening */
+.wpvs-mic.wpvs-listening {
+  color: #e74c3c;
+  animation: micPulse 1.2s infinite ease-in-out;
+}
+
+/* Adapter: tampilkan meter saat .wpvs-mic aktif/listening (sudah dicakup di bagian WAVE) */
+
+/* Gutenberg wrapper fix */
+.wp-block-search .wp-block-search__inside-wrapper { gap: 0; }
+/* Beri ruang kanan ekstra bila ada mic */
+.wpvs-search-form .wpvs-field,
+.wp-block-search .wp-block-search__input {
+  padding-right: max(42px, var(--wpvs-mic-right, 12px) + var(--wpvs-mic-size, 20px) + 12px);
+}
+
+/* =========================
+   Dark Mode (kelas khusus)
+   ========================= */
+.wpvs-search-form.wpvs-dark .wpvs-field,
+.wpvs-search-form.wpvs-dark .wp-block-search__input {
+  background: #111;
+  color: #eee;
+  border-color: #444;
+}
+.wpvs-search-form.wpvs-dark .wpvs-submit,
+.wpvs-search-form.wpvs-dark .search-submit,
+.wpvs-search-form.wpvs-dark .wp-block-search__button {
+  background-color: var(--wpvs-btn-bg);
+  color: #000;
+  filter: brightness(.95);
+}
+.wpvs-search-form.wpvs-dark .wpvs-mic { color: #ddd; }
+.wpvs-search-form.wpvs-dark .wpvs-field::placeholder,
+.wpvs-search-form.wpvs-dark .wp-block-search__input::placeholder { color: #aaa; }
+
+/* =========================
+   Animations & a11y
+   ========================= */
+@keyframes micPulse {
+  0% { transform: translateY(-50%) scale(1); opacity: 1; }
+  50% { transform: translateY(-50%) scale(1.15); opacity: 0.85; }
+  100% { transform: translateY(-50%) scale(1); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wpvs-mic.wpvs-listening { animation: none; }
+  .wpvs-submit, .search-submit,
+  .vs-submit { transition: none; }
+}
+
+/* =========================
+   Disabled state
+   ========================= */
+.wpvs-search-form.wpvs-disabled .wpvs-mic {
+  pointer-events: none;
+  opacity: .45;
+  filter: grayscale(1);
+}
+
+/* =========================
+   Status teks
+   ========================= */
+.wpvs-status {
+  display: block;
+  width: 100%;
+  color: #666;
+  margin-top: 4px;
+  font-size: 12px;
+}
+
+/* =========================
+   Responsif kecil
+   ========================= */
+@media (max-width: 420px) {
+  .vs-wrap { --vs-h: 40px; }
+  .vs-submit { padding-inline: 12px; }
+}
+
+/* =========================
+   Dark-mode via body class
+   ========================= */
+body.dark .vs-wrap .vs-input {
+  background: rgba(30,30,30,.9);
+  color: #eee;
+  border-color: rgba(255,255,255,.12);
+}
+
+/* ===== Tooltip untuk tombol mic ===== */
+.wpvs-tip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  max-width: 220px;
+  padding: 6px 8px;
+  font-size: 12px;
+  line-height: 1.2;
+  border-radius: 8px;
+  background: rgba(20,20,20,.92);
+  color: #fff;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity .15s ease, transform .15s ease;
+  white-space: nowrap;
+  z-index: 20;
+  box-shadow: 0 6px 20px rgba(0,0,0,.25);
+}
+.vs-field .wpvs-tip,
+.wpvs-input-wrap .wpvs-tip { right: 0; }
+
+.wpvs-tip::after {
+  content: "";
+  position: absolute;
+  top: 100%; right: 10px;
+  border: 6px solid transparent;
+  border-top-color: rgba(20,20,20,.92);
+}
+
+.wpvs-mic:hover + .wpvs-tip,
+.wpvs-mic:focus-visible + .wpvs-tip,
+.vs-mic:hover + .wpvs-tip,
+.vs-mic:focus-visible + .wpvs-tip {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Dark mode fallback */
+@media (prefers-color-scheme: dark) {
+  .wpvs-tip {
+    background: rgba(245,245,245,.98);
+    color: #111;
+    box-shadow: 0 6px 20px rgba(255,255,255,.12);
+  }
+  .wpvs-tip::after { border-top-color: rgba(245,245,245,.98); }
+}
+
+/* Kurangi animasi bila user memilih reduce motion */
+@media (prefers-reduced-motion: reduce) {
+  .wpvs-tip { transition: none; }
+}
+
+/*---------------------------------- */
